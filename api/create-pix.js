@@ -2,7 +2,7 @@ const API_BASE = 'https://api.gatewaypayshark.com.br';
 const PRODUCT = {
   name: 'Formação Avançada em Medicina Materno-Fetal - Dra. Renata Lopes',
   description: 'Formação Avançada em Medicina Materno-Fetal',
-  amount: 697,
+  amount: 69700,
   currency: 'BRL'
 };
 
