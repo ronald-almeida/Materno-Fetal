@@ -1,9 +1,6 @@
 const form = document.getElementById('checkoutForm');
 const generateBtn = document.getElementById('generatePix');
-const copyBtn = document.getElementById('copyPix');
 const feedback = document.getElementById('pixFeedback');
-const qrPlaceholder = document.getElementById('qrPlaceholder');
-const qrCode = document.getElementById('qrCode');
 let pixCode = '';
 
 const digits = (value = '') => String(value).replace(/\D/g, '');
@@ -41,17 +38,17 @@ function ensurePixModal() {
     <div class="pix-modal-backdrop" data-close-pix></div>
     <div class="pix-modal-card" role="dialog" aria-modal="true" aria-labelledby="pixModalTitle">
       <button type="button" class="pix-modal-close" data-close-pix aria-label="Fechar">×</button>
-      <h3 id="pixModalTitle">Pague com Pix</h3>
-      <p class="pix-modal-subtitle">Escaneie o QR Code ou copie o código Pix abaixo.</p>
-      <div id="pixModalQr" class="pix-modal-qr"></div>
+      <h3 id="pixModalTitle">Pagamento via Pix</h3>
+      <p class="pix-modal-subtitle">Escaneie o QR Code ou utilize o código Pix copia e cola.</p>
+      <div id="pixModalQr" class="pix-modal-qr" aria-label="QR Code Pix"></div>
       <label class="pix-code-label" for="pixCodeField">Código Pix copia e cola</label>
       <textarea id="pixCodeField" class="pix-code-field" readonly></textarea>
       <button type="button" id="pixModalCopy" class="pix-modal-copy">Copiar código Pix</button>
-      <div id="pixModalFeedback" class="pix-modal-feedback"></div>
+      <div id="pixModalFeedback" class="pix-modal-feedback" aria-live="polite"></div>
     </div>`;
 
   document.body.appendChild(modal);
-  modal.querySelectorAll('[data-close-pix]').forEach(el => el.addEventListener('click', closePixModal));
+  modal.querySelectorAll('[data-close-pix]').forEach((el) => el.addEventListener('click', closePixModal));
   modal.querySelector('#pixModalCopy').addEventListener('click', () => copyPixCode(modal.querySelector('#pixModalFeedback')));
   return modal;
 }
@@ -75,34 +72,37 @@ function loadQrLibrary() {
   return new Promise((resolve, reject) => {
     if (typeof window.QRCode === 'function') return resolve();
 
-    const existing = document.getElementById('qrcodejs-fallback');
+    const existing = document.getElementById('qrcodejs-lib');
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
+      if (existing.dataset.loaded === 'true') return resolve();
+      existing.addEventListener('load', resolve, { once: true });
       existing.addEventListener('error', () => reject(new Error('Não foi possível carregar o gerador de QR Code.')), { once: true });
       return;
     }
 
     const script = document.createElement('script');
-    script.id = 'qrcodejs-fallback';
+    script.id = 'qrcodejs-lib';
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-    script.onload = () => resolve();
+    script.async = true;
+    script.onload = () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    };
     script.onerror = () => reject(new Error('Não foi possível carregar o gerador de QR Code.'));
     document.head.appendChild(script);
   });
 }
 
-async function renderQr(target, value, size = 220) {
+async function renderQr(target, value) {
   await loadQrLibrary();
   target.innerHTML = '';
 
-  if (typeof window.QRCode !== 'function') {
-    throw new Error('Gerador de QR Code indisponível.');
-  }
+  if (typeof window.QRCode !== 'function') throw new Error('Gerador de QR Code indisponível.');
 
   new window.QRCode(target, {
     text: value,
-    width: size,
-    height: size,
+    width: 220,
+    height: 220,
     colorDark: '#000000',
     colorLight: '#ffffff',
     correctLevel: window.QRCode.CorrectLevel.M
@@ -111,10 +111,10 @@ async function renderQr(target, value, size = 220) {
 
 async function generatePix() {
   const originalHtml = generateBtn.innerHTML;
+
   try {
     generateBtn.disabled = true;
     generateBtn.textContent = 'Gerando código...';
-    copyBtn.disabled = true;
     showFeedback('');
 
     const customer = getCustomer();
@@ -140,15 +140,11 @@ async function generatePix() {
 
     pixField.value = pixCode;
     modalFeedback.textContent = '';
-
-    await renderQr(modalQr, pixCode, 220);
-
-    qrPlaceholder.style.display = 'none';
-    qrCode.style.display = 'none';
-    copyBtn.disabled = false;
-    showFeedback('Código Pix gerado com sucesso.');
     openPixModal();
+    await renderQr(modalQr, pixCode);
+    showFeedback('Código Pix gerado com sucesso.');
   } catch (error) {
+    closePixModal();
     showFeedback(error.message || 'Erro ao gerar o Pix.', true);
   } finally {
     generateBtn.disabled = false;
@@ -156,8 +152,9 @@ async function generatePix() {
   }
 }
 
-async function copyPixCode(targetFeedback = feedback) {
+async function copyPixCode(targetFeedback) {
   if (!pixCode) return;
+
   try {
     await navigator.clipboard.writeText(pixCode);
     targetFeedback.textContent = 'Código Pix copiado.';
@@ -171,13 +168,13 @@ async function copyPixCode(targetFeedback = feedback) {
     textarea.select();
     const copied = document.execCommand('copy');
     textarea.remove();
+
     targetFeedback.textContent = copied ? 'Código Pix copiado.' : 'Não foi possível copiar automaticamente.';
     targetFeedback.style.color = copied ? '#008f3d' : '#b42318';
   }
 }
 
 generateBtn.addEventListener('click', generatePix);
-copyBtn.addEventListener('click', () => copyPixCode());
 form.addEventListener('submit', (event) => event.preventDefault());
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closePixModal();
